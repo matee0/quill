@@ -1,27 +1,19 @@
-import { getKindeServerSession } from '@kinde-oss/kinde-auth-nextjs/server'
-import {
-  privateProcedure,
-  publicProcedure,
-  router,
-} from './trpc'
-import { TRPCError } from '@trpc/server'
-import { db } from '@/db'
-import { z } from 'zod'
-import { INFINITE_QUERY_LIMIT } from '@/config/infinite-query'
-import { absoluteUrl } from '@/lib/utils'
-import {
-  getUserSubscriptionPlan,
-  stripe,
-} from '@/lib/stripe'
-import { PLANS } from '@/config/stripe'
+import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server"
+import { privateProcedure, publicProcedure, router } from "./trpc"
+import { TRPCError } from "@trpc/server"
+import { db } from "@/db"
+import { z } from "zod"
+import { INFINITE_QUERY_LIMIT } from "@/config/infinite-query"
+import { absoluteUrl } from "@/lib/utils"
+import { getUserSubscriptionPlan, stripe } from "@/lib/stripe"
+import { PLANS } from "@/config/stripe"
 
 export const appRouter = router({
   authCallback: publicProcedure.query(async () => {
     const { getUser } = getKindeServerSession()
     const user = getUser()
 
-    if (!user.id || !user.email)
-      throw new TRPCError({ code: 'UNAUTHORIZED' })
+    if (!user.id || !user.email) throw new TRPCError({ code: "UNAUTHORIZED" })
 
     // check if the user is in the database
     const dbUser = await db.user.findFirst({
@@ -52,63 +44,51 @@ export const appRouter = router({
     })
   }),
 
-  createStripeSession: privateProcedure.mutation(
-    async ({ ctx }) => {
-      const { userId } = ctx
+  createStripeSession: privateProcedure.mutation(async ({ ctx }) => {
+    const { userId } = ctx
 
-      const billingUrl = absoluteUrl('/dashboard/billing')
+    const billingUrl = absoluteUrl("/dashboard/billing")
 
-      if (!userId)
-        throw new TRPCError({ code: 'UNAUTHORIZED' })
+    if (!userId) throw new TRPCError({ code: "UNAUTHORIZED" })
 
-      const dbUser = await db.user.findFirst({
-        where: {
-          id: userId,
-        },
+    const dbUser = await db.user.findFirst({
+      where: {
+        id: userId,
+      },
+    })
+
+    if (!dbUser) throw new TRPCError({ code: "UNAUTHORIZED" })
+
+    const subscriptionPlan = await getUserSubscriptionPlan()
+
+    if (subscriptionPlan.isSubscribed && dbUser.stripeCustomerId) {
+      const stripeSession = await stripe.billingPortal.sessions.create({
+        customer: dbUser.stripeCustomerId,
+        return_url: billingUrl,
       })
-
-      if (!dbUser)
-        throw new TRPCError({ code: 'UNAUTHORIZED' })
-
-      const subscriptionPlan =
-        await getUserSubscriptionPlan()
-
-      if (
-        subscriptionPlan.isSubscribed &&
-        dbUser.stripeCustomerId
-      ) {
-        const stripeSession =
-          await stripe.billingPortal.sessions.create({
-            customer: dbUser.stripeCustomerId,
-            return_url: billingUrl,
-          })
-
-        return { url: stripeSession.url }
-      }
-
-      const stripeSession =
-        await stripe.checkout.sessions.create({
-          success_url: billingUrl,
-          cancel_url: billingUrl,
-          payment_method_types: ['card', 'paypal'],
-          mode: 'subscription',
-          billing_address_collection: 'auto',
-          line_items: [
-            {
-              price: PLANS.find(
-                (plan) => plan.name === 'Pro'
-              )?.price.priceIds.test,
-              quantity: 1,
-            },
-          ],
-          metadata: {
-            userId: userId,
-          },
-        })
 
       return { url: stripeSession.url }
     }
-  ),
+
+    const stripeSession = await stripe.checkout.sessions.create({
+      success_url: billingUrl,
+      cancel_url: billingUrl,
+      payment_method_types: ["card", "paypal"],
+      mode: "subscription",
+      billing_address_collection: "auto",
+      line_items: [
+        {
+          price: PLANS.find((plan) => plan.name === "Pro")?.price.priceIds.test,
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        userId: userId,
+      },
+    })
+
+    return { url: stripeSession.url }
+  }),
 
   getFileMessages: privateProcedure
     .input(
@@ -130,7 +110,7 @@ export const appRouter = router({
         },
       })
 
-      if (!file) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!file) throw new TRPCError({ code: "NOT_FOUND" })
 
       const messages = await db.message.findMany({
         take: limit + 1,
@@ -138,7 +118,7 @@ export const appRouter = router({
           fileId,
         },
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
         cursor: cursor ? { id: cursor } : undefined,
         select: {
@@ -171,7 +151,8 @@ export const appRouter = router({
         },
       })
 
-      if (!file) return { status: 'PENDING' as const }
+      // console.log(file, "file")
+      if (!file) return { status: "PENDING" as const }
 
       return { status: file.uploadStatus }
     }),
@@ -188,7 +169,7 @@ export const appRouter = router({
         },
       })
 
-      if (!file) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!file) throw new TRPCError({ code: "NOT_FOUND" })
 
       return file
     }),
@@ -205,7 +186,7 @@ export const appRouter = router({
         },
       })
 
-      if (!file) throw new TRPCError({ code: 'NOT_FOUND' })
+      if (!file) throw new TRPCError({ code: "NOT_FOUND" })
 
       await db.file.delete({
         where: {

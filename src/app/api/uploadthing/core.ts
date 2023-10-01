@@ -1,16 +1,13 @@
-import { db } from '@/db'
-import { getKindeServerSession } from '@kinde-oss/kinde-auth-nextjs/server'
-import {
-  createUploadthing,
-  type FileRouter,
-} from 'uploadthing/next'
+import { db } from "@/db"
+import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server"
+import { createUploadthing, type FileRouter } from "uploadthing/next"
 
-import { PDFLoader } from 'langchain/document_loaders/fs/pdf'
-import { OpenAIEmbeddings } from 'langchain/embeddings/openai'
-import { PineconeStore } from 'langchain/vectorstores/pinecone'
-import { getPineconeClient } from '@/lib/pinecone'
-import { getUserSubscriptionPlan } from '@/lib/stripe'
-import { PLANS } from '@/config/stripe'
+import { PDFLoader } from "langchain/document_loaders/fs/pdf"
+import { OpenAIEmbeddings } from "langchain/embeddings/openai"
+import { PineconeStore } from "langchain/vectorstores/pinecone"
+import { getPineconeClient } from "@/lib/pinecone"
+import { getUserSubscriptionPlan } from "@/lib/stripe"
+import { PLANS } from "@/config/stripe"
 
 const f = createUploadthing()
 
@@ -18,7 +15,7 @@ const middleware = async () => {
   const { getUser } = getKindeServerSession()
   const user = getUser()
 
-  if (!user || !user.id) throw new Error('Unauthorized')
+  if (!user || !user.id) throw new Error("Unauthorized")
 
   const subscriptionPlan = await getUserSubscriptionPlan()
 
@@ -50,7 +47,7 @@ const onUploadComplete = async ({
       name: file.name,
       userId: metadata.userId,
       url: `https://uploadthing-prod.s3.us-west-2.amazonaws.com/${file.key}`,
-      uploadStatus: 'PROCESSING',
+      uploadStatus: "PROCESSING",
     },
   })
 
@@ -71,20 +68,16 @@ const onUploadComplete = async ({
     const { isSubscribed } = subscriptionPlan
 
     const isProExceeded =
-      pagesAmt >
-      PLANS.find((plan) => plan.name === 'Pro')!.pagesPerPdf
+      pagesAmt > PLANS.find((plan) => plan.name === "Pro")!.pagesPerPdf
     const isFreeExceeded =
-      pagesAmt >
-      PLANS.find((plan) => plan.name === 'Free')!
-        .pagesPerPdf
+      pagesAmt > PLANS.find((plan) => plan.name === "Free")!.pagesPerPdf
 
-    if (
-      (isSubscribed && isProExceeded) ||
-      (!isSubscribed && isFreeExceeded)
-    ) {
+    if ((isSubscribed && isProExceeded) || (!isSubscribed && isFreeExceeded)) {
+      console.log(isProExceeded, "isProExceeded")
+      console.log(isFreeExceeded, "isFreeExceeded")
       await db.file.update({
         data: {
-          uploadStatus: 'FAILED',
+          uploadStatus: "FAILED",
         },
         where: {
           id: createdFile.id,
@@ -94,33 +87,31 @@ const onUploadComplete = async ({
 
     // vectorize and index entire document
     const pinecone = await getPineconeClient()
-    const pineconeIndex = pinecone.Index('quill')
+    const pineconeIndex = pinecone.Index("quill")
 
     const embeddings = new OpenAIEmbeddings({
       openAIApiKey: process.env.OPENAI_API_KEY,
     })
 
-    await PineconeStore.fromDocuments(
-      pageLevelDocs,
-      embeddings,
-      {
-        pineconeIndex,
-        namespace: createdFile.id,
-      }
-    )
+    await PineconeStore.fromDocuments(pageLevelDocs, embeddings, {
+      pineconeIndex,
+      namespace: createdFile.id,
+    })
 
     await db.file.update({
       data: {
-        uploadStatus: 'SUCCESS',
+        uploadStatus: "SUCCESS",
       },
       where: {
         id: createdFile.id,
       },
     })
   } catch (err) {
+    console.log(err, "err ")
+
     await db.file.update({
       data: {
-        uploadStatus: 'FAILED',
+        uploadStatus: "FAILED",
       },
       where: {
         id: createdFile.id,
@@ -130,10 +121,10 @@ const onUploadComplete = async ({
 }
 
 export const ourFileRouter = {
-  freePlanUploader: f({ pdf: { maxFileSize: '4MB' } })
+  freePlanUploader: f({ pdf: { maxFileSize: "4MB" } })
     .middleware(middleware)
     .onUploadComplete(onUploadComplete),
-  proPlanUploader: f({ pdf: { maxFileSize: '16MB' } })
+  proPlanUploader: f({ pdf: { maxFileSize: "16MB" } })
     .middleware(middleware)
     .onUploadComplete(onUploadComplete),
 } satisfies FileRouter
