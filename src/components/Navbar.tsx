@@ -61,7 +61,26 @@ const Navbar = () => {
                     size: "sm",
                   })}
                 >
-                  Dashboard
+                  Chatbot
+                </Link>
+                <Link
+                  href="/mobileApp"
+                  className={buttonVariants({
+                    variant: "ghost",
+                    size: "sm",
+                  })}
+                >
+                  Mobile Apps
+                </Link>
+
+                <Link
+                  href="/website"
+                  className={buttonVariants({
+                    variant: "ghost",
+                    size: "sm",
+                  })}
+                >
+                  Web Sites
                 </Link>
 
                 <UserAccountNav
